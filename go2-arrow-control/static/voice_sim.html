@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GO2 Voice Control - Maze Simulator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎤 Voice Maze Simulator</h1>
+            <div style="float:right; margin-top:-30px; display: flex; gap: 10px;">
+                <a href="/voice/control" class="btn btn-secondary">🤖 Voice Robot Control</a>
+            </div>
+            <p class="subtitle">Test your model while another group drives the real robot: steer the dog through the maze as fast as you can!</p>
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="status-label">Model:</span>
+                    <span id="model-status" class="status-value">None</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Best today:</span>
+                    <span id="best-status" class="status-value">-</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Left Panel: Camera -->
+            <div class="panel camera-panel">
+                <h2>🎤 Microphone</h2>
+                <div class="camera-container">
+                    <video id="webcam" autoplay playsinline></video>
+                    <div class="camera-overlay">
+                        <div id="prediction-display" class="prediction-display">
+                            Select a model to start...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Class probabilities, styled like the Teachable Machine preview -->
+                <div id="class-output" class="class-output" style="display: none;">
+                    <h4>Output</h4>
+                    <div id="class-bars"></div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Maze -->
+            <div class="panel maze-panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin-bottom: 0;">🐕 Maze</h2>
+                    <div id="sim-timer" class="sim-timer">0.0 s</div>
+                </div>
+                <div class="maze-container">
+                    <canvas id="maze-canvas"></canvas>
+                    <div id="sim-countdown" class="sim-countdown" style="display: none;"></div>
+                </div>
+                <div class="control-buttons">
+                    <button id="sim-start-btn" class="btn btn-success" disabled>▶️ Start</button>
+                    <button id="sim-restart-btn" class="btn btn-warning" disabled>🔄 Restart</button>
+                </div>
+                <p class="help-text" style="margin-top: 10px;">
+                    Speed and AI settings are the same for everyone: ↑ walk, ← → turn, ↓ walk backwards, Idle stands still.
+                    Reach the 🏁 to stop the timer.
+                </p>
+            </div>
+        </div>
+
+        <div class="main-content" style="padding-top: 0;">
+            <!-- Model upload and selection -->
+            <div class="panel model-panel">
+                <h2>⚙️ Your Model</h2>
+
+                <div class="section">
+                    <h3>Upload New Model</h3>
+                    <form id="voice-upload-form" style="background: #f1f5f9; padding: 15px; border-radius: 8px; margin-top: 10px; border: 1px solid #e2e8f0;">
+                        <div class="form-group">
+                            <label for="model-name">Group Name:</label>
+                            <input type="text" id="model-name" placeholder="e.g. Team Alpha" required style="width: 100%; margin-bottom: 10px; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                        </div>
+                        <div class="form-group">
+                            <label for="model-file">Teachable Machine model (.zip):</label>
+                            <input type="file" id="model-file" accept=".zip" required style="width: 100%; margin-bottom: 5px;">
+                            <span class="help-text" style="margin-bottom: 15px;">Audio Project → Export Model → Tensorflow.js → Download my model. Upload the .zip as it is.</span>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%">Upload Model</button>
+                    </form>
+                </div>
+
+                <div class="section">
+                    <h3>Select Model</h3>
+                    <div class="form-group">
+                        <select id="model-select" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #fff; color: #333; border: 1px solid #ccc; border-radius: 4px;">
+                            <option value="">-- Choose a Model --</option>
+                        </select>
+                        <button id="load-model-btn" class="btn btn-primary" style="width: 100%">
+                            Load Selected Model
+                        </button>
+                    </div>
+                    <div id="model-mapping" class="model-mapping" style="display: none;"></div>
+                </div>
+            </div>
+
+            <!-- Leaderboard -->
+            <div class="panel leaderboard-panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin-bottom: 0;">🏆 Leaderboard</h2>
+                    <div class="lb-toggle">
+                        <button id="lb-today-btn" class="btn btn-small active">Today</button>
+                        <button id="lb-all-btn" class="btn btn-small">All time</button>
+                    </div>
+                </div>
+                <table class="leaderboard">
+                    <thead>
+                        <tr><th>#</th><th>Model</th><th>Time</th><th id="lb-date-header">Date</th></tr>
+                    </thead>
+                    <tbody id="leaderboard-body">
+                        <tr><td colspan="4" class="leaderboard-empty">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <footer>
+            <p>Unitree GO2 EDU Control System - Maze Simulator</p>
+        </footer>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Served locally: the workshop WiFi has no internet -->
+    <script src="{{ url_for('static', filename='vendor/tf.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/speech-commands.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/shared.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/sim.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/voice_shared.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/voice_sim.js') }}"></script>
+</body>
+</html>

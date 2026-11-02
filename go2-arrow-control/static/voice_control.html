@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GO2 Voice Control - Live</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎤 GO2 Voice Control</h1>
+            <div style="float:right; margin-top:-30px; display: flex; gap: 10px;">
+                <a href="/voice/sim" class="btn btn-success">🏁 Voice Maze Simulator</a>
+                <a href="/teacher" class="btn btn-secondary">Teacher Portal</a>
+            </div>
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="status-label">Model:</span>
+                    <span id="model-status" class="status-value">None</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Robot:</span>
+                    <span id="robot-status" class="status-value">Disconnected</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Pilot:</span>
+                    <span id="pilot-status" class="status-value">Searching...</span>
+                </div>
+            </div>
+            <div id="pilot-controls" style="margin-top: 10px; display: flex; gap: 10px; align-items: center;">
+                <button id="take-control-btn" class="btn btn-primary">🎮 Take Control</button>
+                <button id="relinquish-btn" class="btn btn-warning" style="display: none;">🔓 Relinquish Control</button>
+                <span id="pilot-message" style="font-size: 0.9em; color: #aaa;"></span>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Left Panel: Camera -->
+            <div class="panel camera-panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h2>🎤 Microphone</h2>
+                    <div id="feed-toggle-container" class="toggle-group" style="display: flex; background: #333; border-radius: 5px; overflow: hidden;">
+                        <button id="show-local-btn" class="btn btn-small active" style="border-radius: 0; margin: 0; background: #444;">Your Cam</button>
+                        <button id="show-pilot-btn" class="btn btn-small" style="border-radius: 0; margin: 0; background: transparent;">Pilot View</button>
+                    </div>
+                </div>
+                <div class="camera-container">
+                    <video id="webcam" autoplay playsinline></video>
+                    <img id="pilot-feed" style="display: none;" />
+                    <canvas id="canvas" style="display: none;"></canvas>
+                    <div class="camera-overlay">
+                        <div id="prediction-display" class="prediction-display">
+                            Select a model to start...
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Class probabilities, styled like the Teachable Machine preview -->
+                <div id="class-output" class="class-output" style="display: none;">
+                    <h4>Output</h4>
+                    <div id="class-bars"></div>
+                </div>
+
+                <div class="control-buttons">
+                    <button id="start-btn" class="btn btn-success" disabled>
+                        ▶️ Start Control
+                    </button>
+                    <button id="stop-btn" class="btn btn-warning" disabled>
+                        ⏸️ Stop Control
+                    </button>
+                    <button id="emergency-btn" class="btn btn-danger" disabled>
+                        🛑 EMERGENCY STOP
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Panel: Controls -->
+            <div class="panel model-panel">
+                <h2>⚙️ Configuration</h2>
+                
+                <!-- Model Upload -->
+                <div class="section">
+                    <h3>Upload New Model</h3>
+                    <form id="voice-upload-form" style="background: #f1f5f9; padding: 15px; border-radius: 8px; margin-top: 10px; border: 1px solid #e2e8f0;">
+                        <div class="form-group">
+                            <label for="model-name">Group Name:</label>
+                            <input type="text" id="model-name" placeholder="e.g. Team Alpha" required style="width: 100%; margin-bottom: 10px; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                        </div>
+                        <div class="form-group">
+                            <label for="model-file">Teachable Machine model (.zip):</label>
+                            <input type="file" id="model-file" accept=".zip" required style="width: 100%; margin-bottom: 5px;">
+                            <span class="help-text" style="margin-bottom: 15px;">Audio Project → Export Model → Tensorflow.js → Download my model. Upload the .zip as it is.</span>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%">Upload Model</button>
+                    </form>
+                </div>
+
+                <!-- Model Selection -->
+                <div class="section">
+                    <h3>1. Select Model</h3>
+                    <div class="form-group">
+                        <select id="model-select" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #fff; color: #333; border: 1px solid #ccc; border-radius: 4px;">
+                            <option value="">-- Choose a Model --</option>
+                        </select>
+                        <button id="load-model-btn" class="btn btn-primary" style="width: 100%">
+                            Load Selected Model
+                        </button>
+                    </div>
+                    <div id="model-mapping" class="model-mapping" style="display: none;"></div>
+                </div>
+
+                <!-- Settings -->
+                <div class="section">
+                    <details>
+                        <summary style="cursor: pointer; margin-bottom: 10px; color: #4a90e2; font-weight: bold;">⚙️ Adjust Parameters</summary>
+                        
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label for="confidence-threshold">
+                                Confidence Threshold: <span id="confidence-value">65%</span>
+                            </label>
+                            <input type="range" id="confidence-threshold" min="30" max="95" value="65" step="5">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="max-speed">
+                                Max Speed: <span id="speed-value">0.5</span> m/s
+                            </label>
+                            <input type="range" id="max-speed" min="0.1" max="0.5" value="0.5" step="0.05">
+                            <span class="help-text">Forward speed. Turning and reversing get slower or faster with it.</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="command-rate">
+                                Command Interval: <span id="rate-value">0.2</span>s
+                            </label>
+                            <input type="range" id="command-rate" min="0.02" max="1.0" value="0.2" step="0.02">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="buffer-size">
+                                Buffer Size: <span id="buffer-value">3</span> frames
+                            </label>
+                            <input type="range" id="buffer-size" min="1" max="16" value="3" step="1">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="consensus-req">
+                                Consensus: <span id="consensus-value">2</span> frames
+                            </label>
+                            <input type="range" id="consensus-req" min="1" max="16" value="2" step="1">
+                        </div>
+                        
+                        <button id="save-settings-btn" class="btn btn-secondary" style="width: 100%; margin-top: 10px;">
+                            Update Parameters
+                        </button>
+                    </details>
+                </div>
+                
+                <div class="section">
+                    <h3>3. Status</h3>
+                    <p><strong>Latency:</strong> <span id="latency-val">0</span> ms</p>
+                    <p><strong>Last Command:</strong> <span id="last-cmd">-</span></p>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Unitree GO2 EDU Control System</p>
+        </footer>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Served locally: the workshop WiFi has no internet -->
+    <script src="{{ url_for('static', filename='vendor/tf.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/speech-commands.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/shared.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/control.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/voice_shared.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/voice_control.js') }}"></script>
+</body>
+</html>

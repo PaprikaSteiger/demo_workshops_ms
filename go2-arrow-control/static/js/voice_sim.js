@@ -14,13 +14,14 @@
 const VOICE_MAZE_ID = 'voice-maze-1'; // own leaderboard, see VOICE_MAZE_ID in server/voice.py
 
 // One spoken word = one step. Durations at the simulator's fixed speeds (forward 1.5 cells/s,
-// backwards 1.05 cells/s, turning 120°/s): Forward ≈ 3/4 cell, Backwards ≈ 0.4 cell, turns 45°.
-const STEP_MS = { Forward: 500, Backwards: 400, Left: 375, Right: 375 };
+// backwards 1.05 cells/s, turning 120°/s): Forward and Backwards = 1 cell, turns 45°.
+const STEP_MS = { Forward: 667, Backwards: 952, Left: 375, Right: 375 };
 // Decision rule, much lighter than the camera's: a move needs votesRequired confident results
 // among the last `window` results (window 3 at overlapFactor 0.75 = about 0.75 s).
 const VOICE_RULE = { minConfidence: 0.75, window: 3, votesRequired: 2 };
-// One word shows up in up to ~4 overlapping listen() results: ignore the same move again this soon.
-const REPEAT_GUARD_MS = 1000;
+// One word shows up in overlapping listen() results for ~1-1.5 s: ignore the same move again this soon.
+// Keep it above the longest step in STEP_MS, or a repeated word cuts that step short.
+const REPEAT_GUARD_MS = 1200;
 
 
 let stepTimer = null;

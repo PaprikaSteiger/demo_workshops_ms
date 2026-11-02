@@ -2,7 +2,8 @@
 // Loaded after shared.js, control.js and voice_shared.js. control.js stays unchanged: the functions
 // below replace the control.js functions of the same name (the later script wins). Pilot handling,
 // settings, status polling and emergency stop are reused as is. Instead of webcam frames
-// (sendFrame), each listen() result is sent to the existing /submit_prediction (sendScores).
+// (sendFrame), each listen() result is sent to /voice/submit_prediction (sendScores), which turns
+// every confirmed word into one fixed robot step (see ROBOT_STEPS in server/voice.py).
 //
 // Replaces: initializeWebcam, loadModelsList, ensureBrowserModel, loadSelectedModel,
 //   startInference, stopInference, updateButtons
@@ -151,7 +152,7 @@ async function sendScores(probabilities) {
     const start = Date.now();
 
     try {
-        const res = await fetch('/submit_prediction', {
+        const res = await fetch('/voice/submit_prediction', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ probabilities })
